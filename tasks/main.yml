@@ -1,0 +1,113 @@
+---
+
+- name: install epel-release (redhat)
+  yum: >
+    name=epel-release
+    state=latest
+  when: (ansible_os_family == "RedHat" and ansible_distribution_major_version == "7")
+
+- name: install rsync
+  package: >
+    name=rsync
+    state=latest
+
+- name: install tinc
+  package: >
+    name=tinc
+    state=latest
+
+- name: create tinc systemd service file (redhat)
+  template: >
+    src=tinc.service.j2
+    dest=/etc/systemd/system/tinc.service
+  register: tinc_service_file
+  when: (ansible_os_family == "RedHat" and ansible_distribution_major_version == "7")
+
+- name: systemctl daemon-reload (redhat)
+  shell: systemctl daemon-reload
+  when: tinc_service_file.changed
+
+- name: ensure tinc netname directory exists
+  file: >
+    path=/etc/tinc/{{ netname }}/hosts
+    recurse=True
+    state=directory
+
+- name: create /etc/tinc/nets.boot file from template
+  template: >
+    src=nets.boot.j2
+    dest=/etc/tinc/nets.boot
+  notify:
+    - restart tinc
+
+- name: ensure tinc.conf contains connection to all other nodes
+  template: >
+    src=tinc.conf.j2
+    dest=/etc/tinc/{{ netname }}/tinc.conf
+  notify:
+    - reload tinc
+
+- name: create tinc-up file
+  template: >
+    src=tinc-up.j2
+    dest=/etc/tinc/{{ netname }}/tinc-up
+    mode=0755
+  notify:
+    - restart tinc
+
+- name: create tinc-down file
+  template: >
+    src=tinc-down.j2
+    dest=/etc/tinc/{{ netname }}/tinc-down
+    mode=0755
+  notify:
+    - restart tinc
+
+- name: check whether /etc/tinc/netname/hosts/tinc_hostname contains "-----END RSA PUBLIC KEY-----"
+  command: awk '/^-----END RSA PUBLIC KEY-----$/'  /etc/tinc/{{ netname }}/hosts/{{ tinc_hostname | replace('.', '_') }}
+  changed_when: "public_key.stdout != '-----END RSA PUBLIC KEY-----'"
+  ignore_errors: True
+  register: public_key
+
+# this is necessary because the public key will not be generated (non-interactively) if the private key already exists
+- name: delete private key and regenerate keypair if public key is absent from tinc hosts file
+  file: >
+    path=/etc/tinc/{{ netname }}/rsa_key.priv
+    state=absent
+  when: public_key.changed or public_key|failed
+
+- name: create tinc private key (and append public key to tincd hosts file)
+  shell: tincd -n {{ netname }} -K4096
+  args:
+    creates: /etc/tinc/{{ netname }}/rsa_key.priv
+  notify:
+    - restart tinc
+
+- name: fetch the tinc public key
+  shell: sed -n '/-----BEGIN RSA PUBLIC KEY-----/,/-----END RSA PUBLIC KEY-----/p' /etc/tinc/{{ netname }}/hosts/{{ tinc_hostname | replace('.', '_')}}
+  register: public_key_result
+
+- local_action: copy content={{ public_key_result.stdout }} dest=fetch/tinc_{{ netname }}_{{ tinc_hostname }}.key
+
+- name: create host files
+  template: src=host.conf.j2 dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') }}
+  with_items: "{{ play_hosts }}"
+
+- name: touch host files
+  file: dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') }} state=touch
+  with_items: "{{ play_hosts }}"
+
+- name: cleanup unmanaged (eventually)
+  shell: find /etc/tinc/{{ netname }}/hosts/ -maxdepth 1 -mmin +60 -type f -exec rm -f {} \;
+  notify:
+    - restart tinc
+
+- name: run handlers
+  meta: flush_handlers
+
+- name: ensure tinc is started
+  service: >
+    name=tinc
+    enabled=yes
+    state=started
+    pattern=tincd -n {{ netname }}

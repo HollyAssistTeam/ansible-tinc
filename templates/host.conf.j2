@@ -1,0 +1,18 @@
+# Private Network {{private_network  | default('-')}} == {{hostvars[item]['private_network']  | default('-')}}
+# Private Network {{private_interface  | default('-')}}, {{hostvars[item]['private_interface']  | default('-')}}
+
+{% if (private_network is defined and hostvars[item]['private_network'] is defined and private_network == hostvars[item]['private_network']
+    and private_interface is defined and hostvars[item]['private_interface'] is defined and hostvars[item]['private_interface'])
+     and hostvars[item]['ansible_'+hostvars[item]['private_interface']] is defined and hostvars[item]['ansible_'+hostvars[item]['private_interface']].active
+     and hostvars[item]['ansible_'+hostvars[item]['private_interface']].ipv4 is defined
+     %}
+Address = {{hostvars[item]['ansible_'+hostvars[item]['private_interface']].ipv4.address}}
+{% elif (hostvars[item]['main_interface'] is defined) %}
+Address = {{hostvars[item]['ansible_'+hostvars[item]['main_interface']].ipv4.address}}
+{% else %}
+Address = {{hostvars[item].ansible_ssh_host}}
+{% endif %}
+
+Subnet = {{hostvars[item]['vpn_ip']}}/32
+
+{% include "fetch/tinc_"+netname +"_"+hostvars[item]['tinc_hostname']+".key" %}
