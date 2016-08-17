@@ -96,11 +96,13 @@
 - name: touch host files
   file: dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') }} state=touch
   with_items: "{{ play_hosts }}"
+  when: tinc_cleanup_enabled
 
 - name: cleanup unmanaged (eventually)
   shell: find /etc/tinc/{{ netname }}/hosts/ -maxdepth 1 -mmin +60 -type f -exec rm -f {} \;
   notify:
     - restart tinc
+  when: tinc_cleanup_enabled
 
 - name: run handlers
   meta: flush_handlers

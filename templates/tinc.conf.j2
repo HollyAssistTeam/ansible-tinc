@@ -2,11 +2,13 @@ Name = {{ tinc_hostname | replace('.', '_') }}
 AddressFamily = ipv4
 Interface = {{ vpn_interface }}
 
+{% if tinc_bind %}
 {% if ansible_eth0 is defined and ansible_eth0.ipv4 is defined %}
 BindToAddress {{ ansible_eth0.ipv4.address }}
 {% endif %}
 {% if ansible_eth1 is defined and ansible_eth1.ipv4 is defined %}
 BindToAddress {{ ansible_eth1.ipv4.address }}
+{% endif %}
 {% endif %}
 
 {% for host in play_hosts %}

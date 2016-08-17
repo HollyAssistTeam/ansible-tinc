@@ -1,0 +1,3 @@
+---
+tinc_bind: False
+tinc_cleanup_enabled: True
