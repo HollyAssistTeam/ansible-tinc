@@ -1,5 +1,17 @@
 ---
 
+- name: install tinc repo
+  apt_repository: repo="{{tinc_repo}}"
+  when: tinc_repo != ""
+
+- name: update apt packages
+  apt: update_cache=yes
+  when: tinc_repo != ""
+
+- name: uses same port as rpcbind, remove
+  apt: name=rpcbind state=absent
+  when: (ansible_os_family == "Debian")
+
 - name: install epel-release (redhat)
   yum: >
     name=epel-release
@@ -12,9 +24,18 @@
     state=latest
 
 - name: install tinc
+  apt: >
+    name=tinc
+    state=latest
+    force=yes
+  when: (ansible_os_family == "Debian")
+
+- name: install tinc
   package: >
     name=tinc
     state=latest
+    force=yes
+  when: (ansible_os_family != "Debian")
 
 - name: create tinc systemd service file (redhat)
   template: >
@@ -38,7 +59,7 @@
     src=nets.boot.j2
     dest=/etc/tinc/nets.boot
   notify:
-    - restart tinc
+    - reload tinc
 
 - name: ensure tinc.conf contains connection to all other nodes
   template: >
@@ -61,10 +82,10 @@
     dest=/etc/tinc/{{ netname }}/tinc-down
     mode=0755
   notify:
-    - restart tinc
+    - reload tinc
 
 - name: check whether /etc/tinc/netname/hosts/tinc_hostname contains "-----END RSA PUBLIC KEY-----"
-  command: awk '/^-----END RSA PUBLIC KEY-----$/'  /etc/tinc/{{ netname }}/hosts/{{ tinc_hostname | replace('.', '_') }}
+  command: awk '/^-----END RSA PUBLIC KEY-----$/'  /etc/tinc/{{ netname }}/hosts/{{ tinc_hostname | replace('.', '_') | replace('-', '_') }}
   changed_when: "public_key.stdout != '-----END RSA PUBLIC KEY-----'"
   ignore_errors: True
   register: public_key
@@ -81,28 +102,28 @@
   args:
     creates: /etc/tinc/{{ netname }}/rsa_key.priv
   notify:
-    - restart tinc
+    - reload tinc
 
 - name: fetch the tinc public key
-  shell: sed -n '/-----BEGIN RSA PUBLIC KEY-----/,/-----END RSA PUBLIC KEY-----/p' /etc/tinc/{{ netname }}/hosts/{{ tinc_hostname | replace('.', '_')}}
+  shell: sed -n '/-----BEGIN RSA PUBLIC KEY-----/,/-----END RSA PUBLIC KEY-----/p' /etc/tinc/{{ netname }}/hosts/{{ tinc_hostname | replace('.', '_') | replace('-', '_')}}
   register: public_key_result
 
 - local_action: copy content={{ public_key_result.stdout }} dest=fetch/tinc_{{ netname }}_{{ tinc_hostname }}.key
 
 - name: create host files
-  template: src=host.conf.j2 dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') }}
+  template: src=host.conf.j2 dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') | replace('-', '_') }}
   with_items: "{{ play_hosts }}"
 
 - name: touch host files
-  file: dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') }} state=touch
+  file: dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') | replace('-', '_') }} state=touch
+  when: tinc_cleanup is defined
   with_items: "{{ play_hosts }}"
-  when: tinc_cleanup_enabled
 
 - name: cleanup unmanaged (eventually)
   shell: find /etc/tinc/{{ netname }}/hosts/ -maxdepth 1 -mmin +60 -type f -exec rm -f {} \;
+  when: tinc_cleanup is defined
   notify:
-    - restart tinc
-  when: tinc_cleanup_enabled
+    - reload tinc
 
 - name: run handlers
   meta: flush_handlers
@@ -113,3 +134,18 @@
     enabled=yes
     state=started
     pattern=tincd -n {{ netname }}
+
+- name: ensure tinc is started (systemd)
+  service: >
+    name=tinc@{{ netname }}
+    enabled=yes
+
+- name: is tinc already running?
+  shell: service tinc status warn=false
+  register: _svc_tinc
+  failed_when: _svc_tinc.rc != 0 and ("unrecognized service" not in _svc_tinc.stderr)
+  ignore_errors: true
+
+- name: ensure tinc is started
+  shell: service tinc restart
+  when: "_svc_tinc.rc == 0"

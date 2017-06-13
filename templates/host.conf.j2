@@ -13,6 +13,6 @@ Address = {{hostvars[item]['ansible_'+hostvars[item]['main_interface']].ipv4.add
 Address = {{hostvars[item].ansible_ssh_host}}
 {% endif %}
 
-Subnet = {{hostvars[item]['vpn_ip']}}/32
+Subnet = {{hostvars[item]['tinc_ip']}}/32
 
 {% include "fetch/tinc_"+netname +"_"+hostvars[item]['tinc_hostname']+".key" %}

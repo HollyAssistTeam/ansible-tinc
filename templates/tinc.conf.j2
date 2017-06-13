@@ -1,16 +1,25 @@
-Name = {{ tinc_hostname | replace('.', '_') }}
+Name = {{ tinc_hostname | replace('.', '_') | replace('-', '_') }}
 AddressFamily = ipv4
 Interface = {{ vpn_interface }}
+ReplayWindow = 64
 
-{% if tinc_bind %}
+{% if tinc_mode == "tap" %}
+DeviceType = tap
+Interface = tap0
+{% endif %}
+
+PingInterval = 5
+PingTimeout = 3
+
 {% if ansible_eth0 is defined and ansible_eth0.ipv4 is defined %}
 BindToAddress {{ ansible_eth0.ipv4.address }}
 {% endif %}
 {% if ansible_eth1 is defined and ansible_eth1.ipv4 is defined %}
 BindToAddress {{ ansible_eth1.ipv4.address }}
 {% endif %}
-{% endif %}
 
 {% for host in play_hosts %}
-ConnectTo = {{ hostvars[host]['tinc_hostname'] | replace('.', '_') }}
+ConnectTo = {{ hostvars[host]['tinc_hostname'] | replace('.', '_') | replace('-', '_') }}
 {% endfor %}
+
+Mode = switch

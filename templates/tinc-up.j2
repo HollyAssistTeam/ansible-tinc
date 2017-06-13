@@ -1,2 +1,5 @@
 #!/bin/sh
-ifconfig {{ vpn_interface }}  {{ vpn_ip }} netmask {{ vpn_netmask }}
+ifconfig {{ vpn_interface }} {{ tinc_ip }} netmask {{ vpn_netmask }}
+ifconfig {{ vpn_interface }} mtu 1440
+ip link set group 0x2 dev {{ vpn_interface }}
+sysctl net.ipv4.conf.{{ vpn_interface }}.accept_local=1
