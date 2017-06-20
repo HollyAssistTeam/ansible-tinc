@@ -1,7 +1,7 @@
 ---
 
 - name: install tinc repo
-  apt_repository: repo="{{tinc_repo}}" default_release="{{tinc_repo_default_release}}"
+  apt_repository: repo="{{tinc_repo}}"
   when: tinc_repo != ""
 
 - name: update apt packages
@@ -28,6 +28,7 @@
     name=tinc
     state=latest
     force=yes
+    default_release="{{tinc_repo_default_release}}"
   when: (ansible_os_family == "Debian")
 
 - name: install tinc
