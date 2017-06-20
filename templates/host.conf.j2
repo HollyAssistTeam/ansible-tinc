@@ -10,7 +10,7 @@ Address = {{hostvars[item]['ansible_'+hostvars[item]['private_interface']].ipv4.
 {% elif (hostvars[item]['main_interface'] is defined) %}
 Address = {{hostvars[item]['ansible_'+hostvars[item]['main_interface']].ipv4.address}}
 {% else %}
-Address = {{hostvars[item].ansible_ssh_host}}
+Address = {{hostvars[item].ansible_host}}
 {% endif %}
 
 Subnet = {{hostvars[item]['tinc_ip']}}/32
