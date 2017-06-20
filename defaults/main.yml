@@ -1,3 +1,8 @@
 ---
 tinc_mode: tun
 tinc_repo: ""
+tinc_hostname: "{{ansible_hostname}}"
+vpn_interface: tun0
+vpn_netmask: 255.255.255.0
+tinc_repo: "deb http://ftp.debian.org/debian jessie-backports main"
+tinc_repo_default_release: jessie-backports

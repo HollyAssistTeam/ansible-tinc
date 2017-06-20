@@ -1,7 +1,7 @@
 ---
 
 - name: install tinc repo
-  apt_repository: repo="{{tinc_repo}}"
+  apt_repository: repo="{{tinc_repo}}" default_release="{{tinc_repo_default_release}}"
   when: tinc_repo != ""
 
 - name: update apt packages
@@ -109,6 +109,7 @@
   register: public_key_result
 
 - local_action: copy content={{ public_key_result.stdout }} dest=fetch/tinc_{{ netname }}_{{ tinc_hostname }}.key
+  sudo: False
 
 - name: create host files
   template: src=host.conf.j2 dest=/etc/tinc/{{ netname }}/hosts/{{ hostvars[item].tinc_hostname | replace('.', '_') | replace('-', '_') }}
